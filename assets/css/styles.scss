@@ -33,3 +33,42 @@ $on-laptop:        800px;
 @import "main";
 
 @import "base", "layout", "syntax-highlighting";
+
+.site-nav .nav-trigger { display: none; }
+.PageNavigation {
+  font-size: 14px;
+  display: block;
+  width: auto;
+  overflow: hidden;
+}
+
+.PageNavigation a {
+  display: block;
+  width: 50%;
+  float: left;
+  margin: 1em 0;
+}
+
+.PageNavigation .next {
+  text-align: right;
+}
+
+.thumbnail {
+    width: 200px;
+    height: 120px;
+}
+
+/* resize images */
+.thumbnail img {
+    width: 100%;
+    height: auto;
+}
+
+.firstline table{  
+  border-collapse: separate;
+  border-spacing: 150px;
+}
+
+.firstline td, th{
+  border-bottom:2px solid #ddd;}
+

@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Gesture Recognition</title>
+    <link rel="stylesheet" href="/assets/css/styles.css">
+    <head>
+<script type="text/x-mathjax-config"> MathJax.Hub.Config({ TeX: { equationNumbers: { autoNumber:     "all" } } }); </script>
+   <script type="text/x-mathjax-config">
+     MathJax.Hub.Config({
+       tex2jax: {
+         inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+         processEscapes: true
+       }
+     });
+   </script>
+     <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"     type="text/javascript"></script>
+</head>
+
+  </head>
+    <body>
+      <header class="site-header">
+
+  <div class="wrapper">
+    
+    
+    <a class="site-title" href="/">MvO</a>
+  
+    
+      <nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+              <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+              <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger">
+          
+            
+            
+            <a class="page-link" href="/about.html">About</a>
+            
+          
+            
+            
+            <a class="page-link" href="/">Projects</a>
+            
+          
+            
+            
+          
+            
+            
+          
+        </div>
+      </nav>
+    
+  </div>
+</header>
+
+      <div class="page-content">
+        <div class="wrapper">
+      <h1>Gesture Recognition</h1>
+<p>
+  06 Nov 2018
+</p>
+
+<p>This project was done in  collabaration with @vhrgitai and @faaip, for the repo see <a href="https://github.com/faaip/OpenPose-Gesture-Recognition">github</a>.</p>
+
+<h1 id="openpose-gesture-recognition">OpenPose Gesture Recognition</h1>
+
+<p>In this project we made a classifier, to classify the videos from the <a href="https://20bn.com/datasets/jester">20bn jester dataset</a></p>
+
+<p><img src="/assets/images/gesture_recog/animation.gif" alt="Example video" /></p>
+
+<p>Instead of making a classifier from the ground up, we decided to use the <a href="https://github.com/CMU-Perceptual-Computing-Lab/openpose/">OpenPose</a> posture recognition from Carnegie Mellon University’s Perceptual Computing Lab.</p>
+
+<p>This software allowed us to extract pose key points from images, this also contains a flag so that the hand model is included which we would need to classify the actual gestures.</p>
+
+<p>Our working pipeline worked as follows:</p>
+<ol>
+  <li>Parse as many videos as we could using OpenPose</li>
+  <li>Some data preprocessing, since not every video was succesfully parsed</li>
+  <li>Train the classifier</li>
+</ol>
+
+<h1 id="parsing-of-videos">Parsing of video’s</h1>
+
+<p>This part in centered around the <code class="highlighter-rouge">run_openpose.py</code>.
+Here we get a video directory, which contains all the images and run a subprocess that calls the actual openpose command. See the  <code class="highlighter-rouge">scripts/openpose.sh</code> file to see what flags we have used. Note that we use a <a href="https://michaelsobrepera.com/guides/openposeaws.html">OpenPose Docker</a> so the flags might be a bit differnt with the newer versions. In the end OpenPose output a directory of json files (one for each frame). After this we combine the jsons to une big json file.</p>
+
+<p><img src="/assets/images/gesture_recog/processed.gif" alt="parsed video" /></p>
+<h1 id="data-preprocessing">Data Preprocessing</h1>
+
+<p>OpenPose was unfortunately not always succesful with parsing an images. This resulted in a some corrupt videos. We decided to prune the video’s to make it easier for our classifier. In this step we transformed the allowed json video’s to a numpy array. See the notebook <code class="highlighter-rouge">RNN/Data Preprocessing.ipynb</code> for the criterion and transforming of the json files. In our case we eventually had $17054$ samples in our dataset.</p>
+
+<h1 id="training-the-classifier">Training the Classifier</h1>
+
+<p>The architecture of the RNN is based on <a href="https://github.com/guillaume-chevalier/LSTM-Human-Activity-Recognition">guillaume-chevalier</a>. But besides this we also save summaries and best performing models. See <code class="highlighter-rouge">RNN/Our Classifier.ipynb</code> for our implementation.</p>
+
+<p>For training of the classifier we took our dataset and randomly seperate it in a training set of $14000$ and a test set of $3054$.</p>
+
+<h1 id="results">Results</h1>
+
+<p>We ended up with a classifier that had an accuracy off around $50\%$. But note that this classifier was trained on $10\%$ of the total dataset, our hope is that more data would result in a higher accuracy.</p>
+
+
+        </div>
+      </div>
+
+    </body>
+</html>
