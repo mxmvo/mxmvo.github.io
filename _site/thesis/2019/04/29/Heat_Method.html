@@ -1,0 +1,510 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Heat Method</title>
+    <link rel="stylesheet" href="/assets/css/styles.css">
+    <head>
+<script type="text/x-mathjax-config"> MathJax.Hub.Config({ TeX: { equationNumbers: { autoNumber:     "all" } } }); </script>
+   <script type="text/x-mathjax-config">
+     MathJax.Hub.Config({
+       tex2jax: {
+         inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+         processEscapes: true
+       }
+     });
+   </script>
+     <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"     type="text/javascript"></script>
+</head>
+
+  </head>
+    <body>
+      <header class="site-header">
+
+  <div class="wrapper">
+    
+    
+    <a class="site-title" href="/">MvO</a>
+  
+    
+      <nav class="site-nav">
+        <!--<input type="checkbox" id="nav-trigger" class="nav-trigger" />-->
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+              <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+              <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger">
+          
+            
+            
+            <a class="page-link" href="/about.html">About</a>
+            
+          
+            
+            
+            <a class="page-link" href="/">Projects</a>
+            
+          
+            
+            
+          
+            
+            
+            <a class="page-link" href="/thesis.html">Thesis</a>
+            
+          
+            
+            
+          
+        </div>
+      </nav>
+    
+  </div>
+</header>
+
+      <div class="page-content">
+        <div class="wrapper">
+      <h1>Heat Method</h1>
+<p>
+  29 Apr 2019
+</p>
+
+<p>The heat method, used to calculate geodesic distance on a triangulated mesh</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">vtki</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="n">np</span>
+
+<span class="kn">from</span> <span class="nn">plyfile</span> <span class="kn">import</span> <span class="n">PlyData</span><span class="p">,</span> <span class="n">PlyElement</span>
+<span class="kn">from</span> <span class="nn">vtki</span> <span class="kn">import</span> <span class="n">PolyData</span>
+<span class="kn">from</span> <span class="nn">tqdm</span> <span class="kn">import</span> <span class="n">tqdm</span>
+
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">"../.."</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">modules.heat_method</span> <span class="kn">import</span> <span class="n">heat_method</span>
+
+</code></pre></div></div>
+
+<h1 id="table-of-content">Table of content:</h1>
+<ul>
+  <li><a href="#Intro">Heat method for computing geodesic distance</a>: Explaination of the method used</li>
+  <li><a href="#Examples">Examples</a>: Some examples where the heat method has been applied</li>
+  <li><a href="#Issues">Issues</a>: Where have I experienced issues with the method</li>
+</ul>
+
+<p><a name="Intro"></a></p>
+<h1 id="heat-method-for-computing-geodesic-distance">Heat method for computing geodesic distance.</h1>
+
+<p>The heat method is based on the article <a href="https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/">Geodesics in Heat</a>.</p>
+
+<p>The algorithm uses discretisation of certain mathematical operators. This will eventually results into solving linear equations, which can be done using standard packages. On of the advantages of this method over Fast Marching Method is that the algoritm can already precompute certain matrices and factorise those, making the algorithm efficient when the goal is to calculate the distance from multiple source points.</p>
+
+<p>Another advantage is that the triangulation does not have as big of an impact, as it would have in the FMM case. In the FMM when a triangle is not acute then there is an unfolding principle. For more information about the FMM see <a href="http://www.pnas.org/cgi/doi/10.1073/pnas.95.15.8431">Computing geodesic paths on manifolds</a></p>
+
+<h2 id="the-method">The Method</h2>
+<p>The Heat Method consists of three main steps:</p>
+<ul>
+  <li>I. Integrate the heat flow $\dot{u} = \Delta u$ for some fixed time $t$</li>
+  <li>
+    <table>
+      <tbody>
+        <tr>
+          <td>II. Evaluate the vector field $X = −\nabla u/</td>
+          <td>\nabla u</td>
+          <td>$.</td>
+        </tr>
+      </tbody>
+    </table>
+  </li>
+  <li>III. Solve the Poisson equation $\Delta \phi = \nabla \cdot X$.</li>
+</ul>
+
+<p>I will not argue for the validity of the method, if you are interested I refer to the article. In the article they set $t =m*h^2$, here $h$ is the mean distance between adjacent vertices and $m$ a constant bigger than $0$. Theoretically $t$ should be as small as possible, numerically $m=1$ works fine according to the authors. If the mesh is not uniform, they suggest a $h$ to be the max distance between adjacent vertices.</p>
+
+<h2 id="the-discretisation">The Discretisation</h2>
+
+<p>The discretisation of the above described steps is given below, if you are interested in what this actually means look at the next section. If you want to see examples scroll further down.</p>
+
+<script type="math/tex; mode=display">% <![CDATA[
+\begin{align*}
+\left(A-t L\right) u & =u_{0}& \text{I}\\
+(\nabla u)_f& =\frac{1}{2 A_{f}} \sum_{i} u_{i}\left(N \times e_{i}\right) & \text{II}\\
+(\nabla \cdot X)_v& =\frac{1}{2} \sum_{j} \cot \theta_{1}\left(e_{1} \cdot X_{j}\right)+\cot \theta_{2}\left(e_{2} \cdot X_{j}\right) & \text{II}\\
+L \phi & =\nabla X & \text{III}
+\end{align*} %]]></script>
+
+<p>These discritisation assume that the on the boundary the gradient of the function is zero.</p>
+
+<h3 id="details-about-the-discretisation">Details about the Discretisation</h3>
+
+<p>For discretisation of step I. An Euler backward in time $ \dot{u_t} = \frac{u_t-u_0}{t}$ here $u_t$ is the heat after a certain time, and $u_0$ is the initial heat, which in our case is a certain point thus a vector with $1$ at the desired vertex. The Discrete Laplace Beltrami operator can be rewritten as $\Delta = A^{-1}L_c$. Here $A$ is a diagonal matrix with on position $ii$ the vertex area of $i$. This is commonly taken to be the a third of the sum of the area’s containing $i$, this is a bary centric area. Another approach could be the circumcentric area, this takes the area of the dual cell, dual cells are better described in  <a href="http://www.geometry.caltech.edu/pubs/DKT05.pdf">Discrete Differential Forms for Computational Modeling</a>, this reference is a nice introduction to a way of discritizing certain mathematical operators, a somewhat different approach than the finite element methods.</p>
+
+<p>The matrix $L$ is based on the cotan formula, and is</p>
+
+<script type="math/tex; mode=display">% <![CDATA[
+\begin{align*}
+  (L)_{ij} = \begin{cases}
+    (\cot(\alpha_{ij}) + \cot(\beta_{ij}))/2 & ij \in int (E) \\
+    \cot(\alpha_{ij})/2 & ij \in \partial E \\
+    -\sum_{k\neq i} L_{ik} & i =j \\
+    0 & else
+  \end{cases}
+\end{align*} %]]></script>
+
+<p>where $\alpha_{ij}$ and $\beta_{ij}$ are the angles opposite the edge $ij$.</p>
+
+<p>With this notation we can discritisize step I
+\begin{align<em>}
+\left(A-t L\right) u &amp; =u_{0}&amp; \text{I}<br />
+\end{align</em>}</p>
+
+<p>Note that the matrix, $A-tL$, can precomputed and prefactorized since it does not depend on the source point.</p>
+
+<p>The discretisation of the gradient of a function that is defined on the vertices.
+<script type="math/tex">% <![CDATA[
+\begin{align*}
+(\nabla u)_f & =\frac{1}{2 A_{f}} \sum_{i} u_{i}\left(N \times e_{i}\right) & \text{II}\\
+\end{align*} %]]></script>
+In this formula $\nabla u$ is computed for each triangle/face, $f$, and $A_f$ is the area of that triangle. Further $N$ denotes the normal vector of that triangle and $e_i$ the respective edges in counter clockwise order.</p>
+
+<p>The vector field $X$ is defined for each triangle, the divergence of this vector field is again a function on the vertices. The discretisation of the divergense is, 
+<script type="math/tex">% <![CDATA[
+\begin{align*}
+(\nabla \cdot X)_v& =\frac{1}{2} \sum_{j} \cot \theta_{1}\left(e_{1} \cdot X_{j}\right)+\cot \theta_{2}\left(e_{2} \cdot X_{j}\right) & \text{II}\\
+\end{align*} %]]></script>
+The summation is over triangles that contain $v$, $e_1$ and $e_2$ are the edges of that triangle originating from $v$. The angle $\theta_1$ is opposite the edge $e_1$, similarly for angle $\theta_2$. Also in the discretisations of step II we can precompute certain quantities.</p>
+
+<p>As a final step we need to solve the final system of equations. 
+<script type="math/tex">% <![CDATA[
+\begin{align*}
+L \phi & =\nabla \cdot X & \text{III}
+\end{align*} %]]></script>
+Also here we can factorise $L$.</p>
+
+<p>A carefull reader migth say that in step I, there is a multiplication with the area matrix missing on the righthand side. This is true, expect that if we have a diagonal matrix, this reduces to a scalar multiplication (for a single source point). This will then cancel in the normalisation of the vector field, thus we leave it out.</p>
+
+<p>In step III there seems to a again a multiplication missing of on the left hand side with $A^{-1}$. The reason we can omit this is that the actual discritisation of the divergence has a extra factor that is exactly $A^{-1}$, thus they will also cancel each other. See <a href="http://arxiv.org/abs/math/0508341">Discrete Exterior Calculus</a> and <a href="https://www.cs.cmu.edu/~kmcrane/Projects/DGPDEC/">Discrete Differential Geometry: An Applied Introduction</a> for formal derivations of the discretisations.</p>
+
+<hr />
+
+<h2 id="some-auxiliary-functions">Some auxiliary functions</h2>
+
+<p>A function to read a ply file and return numpy arrays, and a function that uses the vtki plotter to show the calculated distance function. The heat method will only be based on the numpy arrays, this way is can easily fit in a different project. Note that for the plotter is the plot is inline we cannot manipulate it, set to false we can rotate and zoom in in a different window.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">read_ply</span><span class="p">(</span><span class="n">f_name</span><span class="p">):</span>
+    <span class="c"># Read the vertices and triangles from a ply file</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">PlyData</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">f_name</span><span class="p">)</span>
+    
+    <span class="n">data_vert</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="nb">list</span><span class="p">(</span><span class="n">vertex</span><span class="p">)</span> <span class="k">for</span> <span class="n">vertex</span> <span class="ow">in</span> <span class="n">data</span><span class="p">[</span><span class="s">'vertex'</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">])</span>
+    <span class="n">data_tri</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s">'face'</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s">'vertex_indices'</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">data_vert</span><span class="p">,</span> <span class="n">data_tri</span>
+
+<span class="n">color_map</span> <span class="o">=</span> <span class="s">'prism'</span>
+<span class="n">color_point</span> <span class="o">=</span> <span class="s">'black'</span>
+<span class="k">def</span> <span class="nf">vtki_plot</span><span class="p">(</span><span class="n">vert</span><span class="p">,</span> <span class="n">tri</span> <span class="p">,</span><span class="n">ind</span><span class="p">,</span> <span class="n">color</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">,</span> <span class="n">arrows_tri</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">text</span> <span class="o">=</span> <span class="s">''</span><span class="p">,</span> <span class="n">inline</span> <span class="o">=</span> <span class="bp">True</span><span class="p">,</span> <span class="n">show_edges</span> <span class="o">=</span> <span class="bp">True</span><span class="p">):</span>
+    <span class="c"># Plot functions on the mesh, together with arrows</span>
+    <span class="n">polydata</span> <span class="o">=</span> <span class="n">PolyData</span><span class="p">(</span><span class="n">vert</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[[[</span><span class="mi">3</span><span class="p">]]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">tri</span><span class="p">),</span><span class="n">tri</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">inline</span><span class="p">:</span>
+        <span class="n">plotter</span> <span class="o">=</span> <span class="n">vtki</span><span class="o">.</span><span class="n">Plotter</span><span class="p">(</span><span class="n">notebook</span> <span class="o">=</span> <span class="bp">True</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">plotter</span> <span class="o">=</span> <span class="n">vtki</span><span class="o">.</span><span class="n">BackgroundPlotter</span><span class="p">()</span>
+
+    <span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">color</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">cmap</span><span class="p">,</span> <span class="n">show_edges</span> <span class="o">=</span> <span class="n">show_edges</span><span class="p">)</span>
+    <span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ind</span><span class="p">)</span><span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">plotter</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span><span class="n">vert</span><span class="p">[</span><span class="n">ind</span><span class="p">],</span> <span class="n">point_size</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="s">'red'</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">arrows_tri</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">cent</span> <span class="o">=</span> <span class="n">vert</span><span class="p">[</span><span class="n">tri</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">plotter</span><span class="o">.</span><span class="n">add_arrows</span><span class="p">(</span><span class="n">cent</span><span class="p">,</span> <span class="n">arrows_tri</span><span class="p">,</span> <span class="n">mag</span>  <span class="o">=</span> <span class="o">.</span><span class="mo">01</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="s">'g'</span><span class="p">)</span>
+    <span class="n">plotter</span><span class="o">.</span><span class="n">view_xy</span><span class="p">()</span>
+    <span class="n">plotter</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>    
+
+</code></pre></div></div>
+
+<p><a name="Examples"></a></p>
+<h1 id="examples">Examples</h1>
+<h2 id="bunny">Bunny</h2>
+
+<p>Lets start of with the standford bunny, this is a smaller version with 14290 vertices and 28576 triangles.
+Initially $t$ is the mean distance squared between adjacent nodes. Later on we will add a scalar to $t$, and see how the distance changes.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bunny_vert</span><span class="p">,</span> <span class="n">bunny_tri</span> <span class="o">=</span> <span class="n">read_ply</span><span class="p">(</span><span class="s">'../test_data/bunny_14k.ply'</span><span class="p">)</span>
+
+<span class="c"># Instansiating the algorithm</span>
+<span class="c"># Here some preprocessing steps are being taken</span>
+<span class="n">heat_bunny</span> <span class="o">=</span> <span class="n">heat_method</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">,</span> <span class="n">bunny_tri</span><span class="p">,</span> <span class="n">t_mode</span> <span class="o">=</span> <span class="s">'mean'</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Finding the index that on the leg of the bunny</span>
+<span class="n">ind_bunny</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">[:,</span><span class="mi">2</span><span class="p">])</span>
+<span class="c"># Run the algorithm for a certain index</span>
+<span class="n">d_bunny</span><span class="p">,</span> <span class="n">X_bunny</span> <span class="o">=</span> <span class="n">heat_bunny</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">ind_bunny</span><span class="p">)</span>
+<span class="n">d_bunny</span><span class="p">[</span><span class="n">ind_bunny</span><span class="p">]</span>
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>0.0
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">plotter</span> <span class="o">=</span> <span class="n">vtki</span><span class="o">.</span><span class="n">Plotter</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+<span class="n">polydata</span> <span class="o">=</span> <span class="n">PolyData</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[[[</span><span class="mi">3</span><span class="p">]]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">bunny_tri</span><span class="p">),</span><span class="n">bunny_tri</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'Render Window 0'</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d_bunny</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">[</span><span class="n">ind_bunny</span><span class="p">],</span> <span class="n">point_size</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="n">color_point</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'Render Window 1'</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d_bunny</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">[</span><span class="n">ind_bunny</span><span class="p">],</span> <span class="n">point_size</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="n">color_point</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'Render Window 2'</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d_bunny</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span><span class="n">color_map</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">[</span><span class="n">ind_bunny</span><span class="p">],</span> <span class="n">point_size</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="n">color_point</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'Render Window 3'</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d_bunny</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">[</span><span class="n">ind_bunny</span><span class="p">],</span> <span class="n">point_size</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="n">color_point</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p><img src="/assets/images/heat_method/output_7_0.png" alt="png" /></p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Running with a m scalar forces us to factorise a matrix, this is done and saved for further querries.</span>
+<span class="n">d_bunny_01</span><span class="p">,</span> <span class="n">X_bunny_01</span> <span class="o">=</span> <span class="n">heat_bunny</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">ind_bunny</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="o">.</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">d_bunny_10</span><span class="p">,</span> <span class="n">X_bunny_10</span> <span class="o">=</span> <span class="n">heat_bunny</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">ind_bunny</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span>
+<span class="n">d_bunny_100</span><span class="p">,</span> <span class="n">X_bunny_100</span> <span class="o">=</span> <span class="n">heat_bunny</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">ind_bunny</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="mi">100</span><span class="p">)</span>
+
+<span class="n">d_bunny_01</span><span class="p">[</span><span class="n">ind_bunny</span><span class="p">],</span> <span class="n">d_bunny_10</span><span class="p">[</span><span class="n">ind_bunny</span><span class="p">],</span> <span class="n">d_bunny_100</span><span class="p">[</span><span class="n">ind_bunny</span><span class="p">]</span>
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>(0.0, 0.0, 0.0)
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># The plotter behaves a bit weird, I can not get the right images in the desired frames</span>
+<span class="c"># But this seems to work oke</span>
+<span class="n">plotter</span> <span class="o">=</span> <span class="n">vtki</span><span class="o">.</span><span class="n">Plotter</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span> <span class="p">,</span><span class="mi">4</span><span class="p">))</span>
+
+<span class="n">polydata</span> <span class="o">=</span> <span class="n">PolyData</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[[[</span><span class="mi">3</span><span class="p">]]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">bunny_tri</span><span class="p">),</span><span class="n">bunny_tri</span><span class="p">])</span>
+
+<span class="n">times</span> <span class="o">=</span> <span class="p">[</span><span class="o">.</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">10</span><span class="p">,</span><span class="mi">100</span><span class="p">]</span>
+<span class="n">dist</span> <span class="o">=</span> <span class="p">[</span><span class="n">d_bunny_01</span><span class="p">,</span> <span class="n">d_bunny</span><span class="p">,</span> <span class="n">d_bunny_10</span><span class="p">,</span> <span class="n">d_bunny_100</span><span class="p">]</span>
+<span class="n">view</span> <span class="o">=</span> <span class="p">[[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+
+<span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">):</span>
+        <span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">)</span>
+        <span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'m: {}'</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">times</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+        <span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">dist</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
+        <span class="n">plotter</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">[</span><span class="n">ind_bunny</span><span class="p">],</span> <span class="n">point_size</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="n">color_point</span><span class="p">)</span>
+        <span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">(</span><span class="n">view</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p><img src="/assets/images/heat_method/output_9_0.png" alt="png" /></p>
+
+<p>Increasing $m$ results in a longer flow, making the distance somewhat smoother, this will then ofcourse not be the same distance as before. Theoretically you should have $t \to 0$. Visually it seems that equal distances still get the same number, i.e. is looks like a distance function, but not one derived from euclidian innerproduct.</p>
+
+<hr />
+
+<h2 id="sphere">Sphere</h2>
+
+<p>Below a exposition how the method works using different triangulations. For the sphere we regard the iso and the uv triangulation.</p>
+
+<h3 id="north-pole">North Pole</h3>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># The iso-triangulated sphere</span>
+<span class="n">sphere_iso_vert</span><span class="p">,</span> <span class="n">sphere_iso_tri</span> <span class="o">=</span> <span class="n">read_ply</span><span class="p">(</span><span class="s">'../test_data/sphere_iso_10k.ply'</span><span class="p">)</span>
+<span class="n">heat_iso</span> <span class="o">=</span> <span class="n">heat_method</span><span class="p">(</span><span class="n">sphere_iso_vert</span><span class="p">,</span> <span class="n">sphere_iso_tri</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Calculating</span>
+<span class="n">ind_sph_iso_north</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">sphere_iso_vert</span><span class="p">[:,</span><span class="mi">2</span><span class="p">])</span>
+<span class="n">d_iso_north</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">heat_iso</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">ind_sph_iso_north</span><span class="p">)</span>
+<span class="n">d_iso_north</span><span class="p">[</span><span class="n">ind_sph_iso_north</span><span class="p">]</span>
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>0.0
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># The uv-triangulated sphere</span>
+<span class="n">sphere_uv_vert</span><span class="p">,</span> <span class="n">sphere_uv_tri</span> <span class="o">=</span> <span class="n">read_ply</span><span class="p">(</span><span class="s">'../test_data/sphere_uv_10k.ply'</span><span class="p">)</span>
+<span class="n">heat_uv</span> <span class="o">=</span> <span class="n">heat_method</span><span class="p">(</span><span class="n">sphere_uv_vert</span><span class="p">,</span> <span class="n">sphere_uv_tri</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Calculating</span>
+<span class="n">ind_sph_uv_north</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">sphere_uv_vert</span><span class="p">[:,</span><span class="mi">2</span><span class="p">])</span>
+<span class="n">d_uv_north</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">heat_uv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">ind_sph_uv_north</span><span class="p">)</span>
+<span class="n">d_uv_north</span><span class="p">[</span><span class="n">ind_sph_uv_north</span><span class="p">]</span>
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>0.0
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">poly_uv</span> <span class="o">=</span> <span class="n">PolyData</span><span class="p">(</span><span class="n">sphere_uv_vert</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[[[</span><span class="mi">3</span><span class="p">]]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">sphere_uv_tri</span><span class="p">),</span><span class="n">sphere_uv_tri</span><span class="p">])</span>
+<span class="n">poly_iso</span> <span class="o">=</span> <span class="n">PolyData</span><span class="p">(</span><span class="n">sphere_iso_vert</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[[[</span><span class="mi">3</span><span class="p">]]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">sphere_iso_tri</span><span class="p">),</span><span class="n">sphere_iso_tri</span><span class="p">])</span>
+
+<span class="n">plotter</span> <span class="o">=</span> <span class="n">vtki</span><span class="o">.</span><span class="n">Plotter</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'UV: north pole'</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">poly_uv</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d_uv_north</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span><span class="c">#, show_edges = True)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span><span class="n">sphere_uv_vert</span><span class="p">[</span><span class="n">ind_sph_uv_north</span><span class="p">],</span> <span class="n">point_size</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="n">color_point</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'Iso: north pole'</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">poly_iso</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d_iso_north</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span><span class="c">#, show_edges = True)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span><span class="n">sphere_iso_vert</span><span class="p">[</span><span class="n">ind_sph_iso_north</span><span class="p">],</span> <span class="n">point_size</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="n">color_point</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p><img src="/assets/images/heat_method/output_16_0.png" alt="png" /></p>
+
+<p>The distance lines are fairly similar, the difference of the triagnulation is noticable since the uv-decompostion has nice latitude lines, which the iso-decomposition doesn’t have.</p>
+
+<h3 id="point-on-the-equator">Point on the equator</h3>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">ind_sph_uv_equator</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">sphere_uv_vert</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">d_uv_equator</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">heat_uv</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">ind_sph_uv_equator</span><span class="p">)</span>
+
+
+<span class="n">ind_sph_iso_equator</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">sphere_iso_vert</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">d_iso_equator</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">heat_iso</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">ind_sph_iso_equator</span><span class="p">)</span>
+
+<span class="n">d_uv_equator</span><span class="p">[</span><span class="n">ind_sph_uv_equator</span><span class="p">],</span> <span class="n">d_iso_equator</span><span class="p">[</span><span class="n">ind_sph_iso_equator</span><span class="p">]</span>
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>(0.0, 0.0)
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">plotter</span> <span class="o">=</span> <span class="n">vtki</span><span class="o">.</span><span class="n">Plotter</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'UV: equator'</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">poly_uv</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d_uv_equator</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="s">'prism'</span><span class="p">)</span><span class="c">#, show_edges = True)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span><span class="n">sphere_uv_vert</span><span class="p">[</span><span class="n">ind_sph_uv_equator</span><span class="p">],</span> <span class="n">point_size</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="s">'red'</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="o">.</span><span class="mi">5</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'Iso: equator'</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">poly_iso</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d_iso_equator</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="s">'prism'</span><span class="p">)</span><span class="c">#, show_edges = True)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span><span class="n">sphere_iso_vert</span><span class="p">[</span><span class="n">ind_sph_iso_equator</span><span class="p">],</span> <span class="n">point_size</span> <span class="o">=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="s">'red'</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="o">.</span><span class="mi">5</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p><img src="/assets/images/heat_method/output_19_0.png" alt="png" /></p>
+
+<p>Here the iso-triangulation works with similar results as for the northpole, while the uv decomposition is a bit more fuzzy, and the distance does not seem totally cricular.</p>
+
+<h2 id="origin-has-non-zero-distance">Origin has non-zero distance</h2>
+
+<p>This is a more general mesh of a human body from the <a href="http://files.is.tue.mpg.de/black/papers/FAUST2014.pdf">FAUST dataset</a></p>
+
+<p>This mesh is still relatively clean, calculating the distance function there might be a different global minumum instead of the origin point, this could be circumvented using a different $m$ scale. To see this properly one should view the meshes in a different window (here one can zoom and rotate), see the below code for the generation of the images.</p>
+
+<p><img src="/assets/images/heat_method/heat_1.png" alt="png" height="720apx" width="360px" />
+<img src="/assets/images/heat_method/heat_2.png" alt="png" height="720apx" width="360px" /></p>
+
+<p>The actual origin is in the arm pit. The green arrows are the vector field $X$, i.e. the normalisation of the negative heat flow gradient. The red dot on the heat in the upper right corner is the global minimum (as calculated using $m=1$. For $m=2$ the arrows in the head are pointing towards the previous global minimum, giving a better representation of the distance.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Reading the body file and initiating the heat method</span>
+<span class="n">body_vert</span><span class="p">,</span> <span class="n">body_tri</span> <span class="o">=</span> <span class="n">read_ply</span><span class="p">(</span><span class="s">'../test_data/tr_reg_000.ply'</span><span class="p">)</span>
+<span class="n">heat_body</span> <span class="o">=</span> <span class="n">heat_method</span><span class="p">(</span><span class="n">body_vert</span><span class="p">,</span> <span class="n">body_tri</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># A check for which indices the origin in not the global minimum</span>
+<span class="c"># output the indices for which this is the case</span>
+
+<span class="c">#from tqdm import tqdm</span>
+<span class="c">#for i in tqdm(range(len(body_vert))):</span>
+<span class="c">#    d, X = heat_body.run(i)</span>
+<span class="c">#    if d[i] != 0:</span>
+<span class="c">#        print(i)</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># A function to find the neighbors of a index including the point itself</span>
+<span class="n">neigh</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">set</span><span class="p">(</span><span class="n">body_tri</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">body_tri</span> <span class="o">==</span> <span class="n">x</span><span class="p">)[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+
+<span class="c"># Origin whicha are note global minimum, computed with the code above</span>
+<span class="n">wrong_ind</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1164</span><span class="p">,</span> <span class="mi">1545</span><span class="p">,</span> <span class="mi">3286</span><span class="p">,</span> <span class="mi">4163</span><span class="p">,</span> <span class="mi">4875</span><span class="p">]</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># For each of the indices, output:</span>
+<span class="c"># index, min_index, are_neighbors, and dist[index]</span>
+<span class="n">dist</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">wrong_ind</span><span class="p">:</span>
+    <span class="n">d</span><span class="p">,</span> <span class="n">X</span> <span class="o">=</span> <span class="n">heat_body</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+    <span class="n">min_ind</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">min_ind</span><span class="p">,</span> <span class="n">min_ind</span> <span class="ow">in</span> <span class="n">neigh</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">d</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="p">)</span>
+    <span class="n">dist</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">d</span><span class="p">,</span><span class="n">X</span><span class="p">])</span>
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>1164 1163 True 0.0006047763735645972
+1545 1544 True 0.0008103617268195862
+3286 3311 True 0.0007720704235878451
+4163 177 False 0.05755220581795739
+4875 4162 True 0.0031038005551227155
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Calculate the distance function</span>
+<span class="n">d</span><span class="p">,</span><span class="n">X</span> <span class="o">=</span> <span class="n">heat_body</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="mi">4163</span><span class="p">)</span>
+
+<span class="c"># Calculate the distance with a different scale and plot</span>
+<span class="n">d2</span><span class="p">,</span><span class="n">X2</span> <span class="o">=</span> <span class="n">heat_body</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="mi">4163</span><span class="p">,</span> <span class="n">m</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="mi">4163</span><span class="p">],</span> <span class="n">d2</span><span class="p">[</span><span class="mi">4163</span><span class="p">])</span>
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>0.05755220581795739 0.0
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">plotter</span> <span class="o">=</span> <span class="n">vtki</span><span class="o">.</span><span class="n">Plotter</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+<span class="c"># Somehow the reusing the polyData copied the color map, so I had to make two.</span>
+<span class="n">poly_body</span> <span class="o">=</span> <span class="n">PolyData</span><span class="p">(</span><span class="n">body_vert</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[[[</span><span class="mi">3</span><span class="p">]]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">body_tri</span><span class="p">),</span><span class="n">body_tri</span><span class="p">])</span>
+<span class="n">poly_body2</span> <span class="o">=</span> <span class="n">PolyData</span><span class="p">(</span><span class="n">body_vert</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[[[</span><span class="mi">3</span><span class="p">]]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">body_tri</span><span class="p">),</span><span class="n">body_tri</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'m: 1'</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">poly_body</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="s">'prism'</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'m: 2'</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">poly_body2</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d2</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="s">'prism'</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p><img src="/assets/images/heat_method/output_28_0.png" alt="png" /></p>
+
+
+
+        </div>
+      </div>
+
+    </body>
+</html>

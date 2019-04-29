@@ -54,14 +54,16 @@ $on-laptop:        800px;
 }
 
 .thumbnail {
-    width: 200px;
-    height: 120px;
+    width: 100%;
+    height: auto;
+    display: block;
 }
 
 /* resize images */
 .thumbnail img {
     width: 100%;
     height: auto;
+    display: block;
 }
 
 .firstline table{  

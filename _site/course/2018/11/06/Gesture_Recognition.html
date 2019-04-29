@@ -56,6 +56,11 @@
           
             
             
+            <a class="page-link" href="/thesis.html">Thesis</a>
+            
+          
+            
+            
           
         </div>
       </nav>
@@ -74,40 +79,28 @@
 
 <h1 id="openpose-gesture-recognition">OpenPose Gesture Recognition</h1>
 
-<p>In this project we made a classifier, to classify the videos from the <a href="https://20bn.com/datasets/jester">20bn jester dataset</a></p>
+<p>In this project we made a classifier, to classify the videos from the <a href="https://20bn.com/datasets/jester">20bn jester dataset</a>
+This dataset contains videos with gestures made by people from all over the world, by using their webcam.</p>
 
-<p><img src="/assets/images/gesture_recog/animation.gif" alt="Example video" /></p>
+<p>To preprocess the videos (seen as a series of images), we used <a href="https://github.com/CMU-Perceptual-Computing-Lab/openpose/">OpenPose</a> posture recognition from Carnegie Mellon University’s Perceptual Computing Lab. This way each video was converted to a sequence of body-point registrations.</p>
 
-<p>Instead of making a classifier from the ground up, we decided to use the <a href="https://github.com/CMU-Perceptual-Computing-Lab/openpose/">OpenPose</a> posture recognition from Carnegie Mellon University’s Perceptual Computing Lab.</p>
+<p>A video below shows an example of the extracted body points projected back on the original video, as you can see not every image get’s succesfully parsed.</p>
 
-<p>This software allowed us to extract pose key points from images, this also contains a flag so that the hand model is included which we would need to classify the actual gestures.</p>
-
-<p>Our working pipeline worked as follows:</p>
-<ol>
-  <li>Parse as many videos as we could using OpenPose</li>
-  <li>Some data preprocessing, since not every video was succesfully parsed</li>
-  <li>Train the classifier</li>
-</ol>
-
-<h1 id="parsing-of-videos">Parsing of video’s</h1>
-
-<p>This part in centered around the <code class="highlighter-rouge">run_openpose.py</code>.
-Here we get a video directory, which contains all the images and run a subprocess that calls the actual openpose command. See the  <code class="highlighter-rouge">scripts/openpose.sh</code> file to see what flags we have used. Note that we use a <a href="https://michaelsobrepera.com/guides/openposeaws.html">OpenPose Docker</a> so the flags might be a bit differnt with the newer versions. In the end OpenPose output a directory of json files (one for each frame). After this we combine the jsons to une big json file.</p>
-
-<p><img src="/assets/images/gesture_recog/processed.gif" alt="parsed video" /></p>
-<h1 id="data-preprocessing">Data Preprocessing</h1>
-
-<p>OpenPose was unfortunately not always succesful with parsing an images. This resulted in a some corrupt videos. We decided to prune the video’s to make it easier for our classifier. In this step we transformed the allowed json video’s to a numpy array. See the notebook <code class="highlighter-rouge">RNN/Data Preprocessing.ipynb</code> for the criterion and transforming of the json files. In our case we eventually had $17054$ samples in our dataset.</p>
+<p><img src="/assets/images/gesture_recog/animation.gif" alt="Example video" /> <img src="/assets/images/gesture_recog/processed.gif" alt="parsed video" /></p>
 
 <h1 id="training-the-classifier">Training the Classifier</h1>
 
-<p>The architecture of the RNN is based on <a href="https://github.com/guillaume-chevalier/LSTM-Human-Activity-Recognition">guillaume-chevalier</a>. But besides this we also save summaries and best performing models. See <code class="highlighter-rouge">RNN/Our Classifier.ipynb</code> for our implementation.</p>
+<p>The architecture of the RNN is based on <a href="https://github.com/guillaume-chevalier/LSTM-Human-Activity-Recognition">guillaume-chevalier</a>. The architecture consists of an fully connected layer followed by two LSTM cell, then the eventual classification is made by two fully connected layers again.</p>
+
+<p>The cost function is the cross entropy function for the prediction together with a regularization term to keep the model from overfitting, this function was optimized using the AdamOptimizer.</p>
 
 <p>For training of the classifier we took our dataset and randomly seperate it in a training set of $14000$ and a test set of $3054$.</p>
 
 <h1 id="results">Results</h1>
 
-<p>We ended up with a classifier that had an accuracy off around $50\%$. But note that this classifier was trained on $10\%$ of the total dataset, our hope is that more data would result in a higher accuracy.</p>
+<p>The classifier ended up with an accuracy off roughly $50\%$. We want to emphasize that we used only $10\%$ of the total dataset, this was because of computational limitations. The extaction of the datapoints from the videos took longer that expected. Our hope is that the accuracy will increase with the size of the dataset. Training the classifier on more data will hopefully make it able to distringuish more between similar gestures. The confusion matrix shows what kind of mistakes the classifier was making.</p>
+
+<p><img src="/assets/images/gesture_recog/confusion_matrix_all.png" alt="Confussion Matrix" heigth="700px" width="700px" /></p>
 
 
         </div>

@@ -3,14 +3,16 @@ layout: default
 title: Projects
 ---
 <h1>This page is still under construction</h1>
-<h1>Projects</h1>
+{% for category in site.categories %}
+
+<h2>{{ category[0] }}</h2>
 
 
   <div>
     <table class=firstline>
       <tbody>
 
-  {% for post in site.posts %}
+  {% for post in category[1] %}
   <tr class=firstline>
     <th colspan = "4">
     <div class=thumbnail>
@@ -26,3 +28,5 @@ title: Projects
       </tbody>
     </table>
       </div>
+
+{% endfor %}

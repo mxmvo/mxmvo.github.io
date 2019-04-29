@@ -1,0 +1,255 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Fast Marching Method</title>
+    <link rel="stylesheet" href="/assets/css/styles.css">
+    <head>
+<script type="text/x-mathjax-config"> MathJax.Hub.Config({ TeX: { equationNumbers: { autoNumber:     "all" } } }); </script>
+   <script type="text/x-mathjax-config">
+     MathJax.Hub.Config({
+       tex2jax: {
+         inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+         processEscapes: true
+       }
+     });
+   </script>
+     <script src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"     type="text/javascript"></script>
+</head>
+
+  </head>
+    <body>
+      <header class="site-header">
+
+  <div class="wrapper">
+    
+    
+    <a class="site-title" href="/">MvO</a>
+  
+    
+      <nav class="site-nav">
+        <!--<input type="checkbox" id="nav-trigger" class="nav-trigger" />-->
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path fill="#424242" d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.031C17.335,0,18,0.665,18,1.484L18,1.484z"/>
+              <path fill="#424242" d="M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0c0-0.82,0.665-1.484,1.484-1.484 h15.031C17.335,6.031,18,6.696,18,7.516L18,7.516z"/>
+              <path fill="#424242" d="M18,13.516C18,14.335,17.335,15,16.516,15H1.484C0.665,15,0,14.335,0,13.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.031C17.335,12.031,18,12.696,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger">
+          
+            
+            
+            <a class="page-link" href="/about.html">About</a>
+            
+          
+            
+            
+            <a class="page-link" href="/">Projects</a>
+            
+          
+            
+            
+          
+            
+            
+            <a class="page-link" href="/thesis.html">Thesis</a>
+            
+          
+            
+            
+          
+        </div>
+      </nav>
+    
+  </div>
+</header>
+
+      <div class="page-content">
+        <div class="wrapper">
+      <h1>Fast Marching Method</h1>
+<p>
+  29 Apr 2019
+</p>
+
+<p>This post is devoted to the Fast Marching Method.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">sys</span>
+<span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">".."</span><span class="p">)</span>
+
+<span class="o">%</span><span class="n">load_ext</span> <span class="n">autoreload</span>
+<span class="o">%</span><span class="n">autoreload</span> <span class="mi">2</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="n">np</span>
+
+<span class="kn">from</span> <span class="nn">modules.fast_marching_method</span> <span class="kn">import</span> <span class="n">FMM</span>
+<span class="kn">from</span> <span class="nn">modules.trimesh</span> <span class="kn">import</span> <span class="n">trimesh</span>
+
+<span class="kn">from</span> <span class="nn">plyfile</span> <span class="kn">import</span> <span class="n">PlyData</span><span class="p">,</span> <span class="n">PlyElement</span>
+
+<span class="kn">import</span> <span class="nn">vtki</span>
+<span class="kn">from</span> <span class="nn">vtki</span> <span class="kn">import</span> <span class="n">PolyData</span>
+</code></pre></div></div>
+
+<h1 id="fast-marching-method">Fast Marching Method</h1>
+
+<p>This post is dedicated to the fast marching method as described in <a href="http://www.pnas.org/cgi/doi/10.1073/pnas.95.15.8431">Computing geodesic paths on manifolds</a>.</p>
+
+<p>It uses a sweeping method, meaning that it is only concerned with the neighborset of known (already calculated) distances.</p>
+
+<p>In short:</p>
+<ul>
+  <li>From the sweep-area pick the vertex with the smallest distance. Remove from the sweep area and put them in the alive set.</li>
+  <li>Add potential new points to the sweep-area.</li>
+  <li>Update the values of the points in the sweep area.</li>
+</ul>
+
+<p>Continue untill all the points are calculated or when a desired distance is reached.</p>
+
+<p>The approach taken in the paper for the update rule is based on the triangulation. 
+<img src="/assets/images/fast_marching/fmm.png" alt="Image" /></p>
+
+<p>The distance to point $A$ and $B$ are known and are such that $d(B)\geq d(A)$. The goal is to find a ‘distance’ plane that has the distance values of $A$ and $B$. Right now there are infinitely many planes that obey this rule. With the following observations we can restrict the solution space.</p>
+
+<p>Because of the sweeping method, we can assume the distance to $C$ is bigger than $d(B)$. Thus there will be a point $D$, on line $AC$ that will atain the value $d(B)$. Note that the gradient of the distance function should be $1$, as you increase one unit if you move one unit. Using this fact, we should know how much the plane should increase from line $BD$ to $C$.</p>
+
+<p>Using basic trigonometric functions we can express the desired quantity as the smallest root of the 2nd order polynomial. These detail will be omitted here and can be found in the original article.</p>
+
+<hr />
+
+<p>Another approach that gives the same results is as follows. It is still assumed that $d(A)$ and $d(B)$ are known. Again the norm of the gradient of the distance function should be $1$. The gradient on a face $f$, can be described as</p>
+
+<script type="math/tex; mode=display">\begin{align*}
+(\nabla d)_f = \frac{1}{2A_f} \sum_i d_i \left(N \times e_i\right)
+\end{align*}</script>
+
+<p>Here $A_f$ is the area of the face, $N$ the normal vector of the triangle, $e_i$ the edges ordered counter clockwise and finally $d_i$ the opposing value.</p>
+
+<p>Using standard cross product rules, the above requirements also reduces to a 2nd order polynomial equation.</p>
+
+<script type="math/tex; mode=display">\begin{align*}
+1 = \sum_{ij} d_i d_j \langle e_i, e_j \rangle
+\end{align*}</script>
+
+<hr />
+
+<p>For both approaches the point should be updated from within the triangle. Meaning that the negative gradient should be pointing in the triangle. Since on a 3D-mesh one cannot know that the shortest path can be reached from outside the triangle, e.g. boundaries. If this happens we set the value as the length of the edge to C plus the distance of the known vertices of that edge.</p>
+
+<p><strong>note:</strong> The code could probably use some performance boosts</p>
+
+<h1 id="below-some-functions-used-for-loading-data-and-plotting">Below some functions used for loading data and plotting</h1>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">read_ply</span><span class="p">(</span><span class="n">f_name</span><span class="p">):</span>
+    <span class="c"># Read the vertices and triangles from a ply file</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">PlyData</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">f_name</span><span class="p">)</span>
+    
+    <span class="n">data_vert</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="nb">list</span><span class="p">(</span><span class="n">vertex</span><span class="p">)</span> <span class="k">for</span> <span class="n">vertex</span> <span class="ow">in</span> <span class="n">data</span><span class="p">[</span><span class="s">'vertex'</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">])</span>
+    <span class="n">data_tri</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s">'face'</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s">'vertex_indices'</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">data_vert</span><span class="p">,</span> <span class="n">data_tri</span>
+
+<span class="n">color_map</span> <span class="o">=</span> <span class="s">'prism'</span>
+<span class="n">color_point</span> <span class="o">=</span> <span class="s">'black'</span>
+<span class="k">def</span> <span class="nf">vtki_plot</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span><span class="n">ind</span><span class="p">,</span> <span class="n">color</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">,</span> <span class="n">arrows_tri</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">paths</span> <span class="o">=</span> <span class="p">[],</span> <span class="n">text</span> <span class="o">=</span> <span class="s">''</span><span class="p">,</span> <span class="n">inline</span> <span class="o">=</span> <span class="bp">False</span><span class="p">,</span> <span class="n">show_edges</span> <span class="o">=</span> <span class="bp">True</span><span class="p">):</span>
+    <span class="c"># Plot functions on the mesh, together with arrows</span>
+    <span class="n">polydata</span> <span class="o">=</span> <span class="n">PolyData</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[[[</span><span class="mi">3</span><span class="p">]]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">triangles</span><span class="p">),</span><span class="n">mesh</span><span class="o">.</span><span class="n">triangles</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">inline</span><span class="p">:</span>
+        <span class="n">plotter</span> <span class="o">=</span> <span class="n">vtki</span><span class="o">.</span><span class="n">Plotter</span><span class="p">(</span><span class="n">notebook</span> <span class="o">=</span> <span class="bp">True</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">plotter</span> <span class="o">=</span> <span class="n">vtki</span><span class="o">.</span><span class="n">BackgroundPlotter</span><span class="p">()</span>
+
+    <span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">color</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">cmap</span><span class="p">,</span> <span class="n">show_edges</span> <span class="o">=</span> <span class="n">show_edges</span><span class="p">)</span>
+    <span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="p">:</span>
+            <span class="k">for</span> <span class="n">pa</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">:</span>
+                <span class="n">p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">pa</span><span class="p">[</span><span class="s">'points'</span><span class="p">])</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">plotter</span><span class="o">.</span><span class="n">add_lines</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="mi">50</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="s">'white'</span><span class="p">)</span>
+    
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ind</span><span class="p">)</span><span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">plotter</span><span class="o">.</span><span class="n">add_points</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">ind</span><span class="p">],</span> <span class="n">point_size</span> <span class="o">=</span> <span class="mi">20</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="s">'black'</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">arrows_tri</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">cent</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">triangles</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">plotter</span><span class="o">.</span><span class="n">add_arrows</span><span class="p">(</span><span class="n">cent</span><span class="p">,</span> <span class="n">arrows_tri</span><span class="p">,</span> <span class="n">mag</span>  <span class="o">=</span> <span class="o">.</span><span class="mo">01</span><span class="p">,</span> <span class="n">color</span> <span class="o">=</span> <span class="s">'g'</span><span class="p">)</span>
+    <span class="n">plotter</span><span class="o">.</span><span class="n">view_xy</span><span class="p">()</span>
+    <span class="n">plotter</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>    
+
+</code></pre></div></div>
+
+<h1 id="example-standford-bunny">Example: Standford Bunny</h1>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">bunny_vert</span><span class="p">,</span> <span class="n">bunny_tri</span> <span class="o">=</span> <span class="n">read_ply</span><span class="p">(</span><span class="s">'../test_data/bunny_36k.ply'</span><span class="p">)</span>
+<span class="n">bunny</span> <span class="o">=</span> <span class="n">trimesh</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">,</span><span class="n">bunny_tri</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Initialise the algorithm</span>
+<span class="n">march</span> <span class="o">=</span> <span class="n">FMM</span><span class="p">(</span><span class="n">bunny</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">ind0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">ind1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">[:,</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">ind2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">[:,</span><span class="mi">2</span><span class="p">])</span>
+<span class="n">ind3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">[:,</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">ind4</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">[:,</span><span class="mi">2</span><span class="p">])</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">%%</span><span class="n">time</span>
+<span class="c"># Run the algorithm from a index untill al the points in the sweep area have values bigger then d_max</span>
+<span class="n">d_max</span> <span class="o">=</span> <span class="o">.</span><span class="mo">02</span>
+<span class="n">d</span>  <span class="o">=</span> <span class="n">march</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="n">ind0</span><span class="p">,</span> <span class="n">ind1</span><span class="p">,</span> <span class="n">ind2</span><span class="p">,</span><span class="n">ind3</span><span class="p">,</span><span class="n">ind4</span><span class="p">],</span> <span class="n">d_max</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>CPU times: user 9.44 s, sys: 47.5 ms, total: 9.48 s
+Wall time: 9.89 s
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">d</span><span class="p">[</span><span class="n">d</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c">#vtki_plot(bunny,[ind0, ind1, ind2, ind3, ind4], d, cmap = 'jet', show_edges = False)</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">plotter</span> <span class="o">=</span> <span class="n">vtki</span><span class="o">.</span><span class="n">Plotter</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+<span class="n">polydata</span> <span class="o">=</span> <span class="n">PolyData</span><span class="p">(</span><span class="n">bunny_vert</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[[[</span><span class="mi">3</span><span class="p">]]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">bunny_tri</span><span class="p">),</span><span class="n">bunny_tri</span><span class="p">])</span>
+<span class="n">color_map</span> <span class="o">=</span> <span class="s">'jet'</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'View 1'</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'View 2'</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'View 3'</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span><span class="n">color_map</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'View 4'</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">d</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+
+
+<span class="n">plotter</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</code></pre></div></div>
+
+<p><img src="/assets/images/fast_marching/output_11_0.png" alt="png" /></p>
+
+
+
+        </div>
+      </div>
+
+    </body>
+</html>
