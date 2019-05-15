@@ -37,7 +37,7 @@ Another advantage is that the triangulation does not have as big of an impact, a
 ## The Method
 The Heat Method consists of three main steps:
 - I. Integrate the heat flow $\dot{u} = \Delta u$ for some fixed time $t$
-- II. Evaluate the vector field $X = −\nabla u/|\nabla u|$.
+- II. Evaluate the vector field $X = −\frac{\nabla u}{\|\nabla u\|}$.
 - III. Solve the Poisson equation $\Delta \phi = \nabla \cdot X$.
 
 I will not argue for the validity of the method, if you are interested I refer to the article. In the article they set $t =m*h^2$, here $h$ is the mean distance between adjacent vertices and $m$ a constant bigger than $0$. Theoretically $t$ should be as small as possible, numerically $m=1$ works fine according to the authors. If the mesh is not uniform, they suggest a $h$ to be the max distance between adjacent vertices. 
@@ -77,26 +77,33 @@ $$
 where $\alpha_{ij}$ and $\beta_{ij}$ are the angles opposite the edge $ij$. 
 
 With this notation we can discritisize step I
+
+$$
 \begin{align*}
 \left(A-t L\right) u & =u_{0}& \text{I}\\
 \end{align*}
+$$
 
 Note that the matrix, $A-tL$, can precomputed and prefactorized since it does not depend on the source point. 
 
 The discretisation of the gradient of a function that is defined on the vertices.
+
 $$
 \begin{align*}
 (\nabla u)_f & =\frac{1}{2 A_{f}} \sum_{i} u_{i}\left(N \times e_{i}\right) & \text{II}\\
 \end{align*}
 $$
+
 In this formula $\nabla u$ is computed for each triangle/face, $f$, and $A_f$ is the area of that triangle. Further $N$ denotes the normal vector of that triangle and $e_i$ the respective edges in counter clockwise order. 
 
 The vector field $X$ is defined for each triangle, the divergence of this vector field is again a function on the vertices. The discretisation of the divergense is, 
+
 $$
 \begin{align*}
 (\nabla \cdot X)_v& =\frac{1}{2} \sum_{j} \cot \theta_{1}\left(e_{1} \cdot X_{j}\right)+\cot \theta_{2}\left(e_{2} \cdot X_{j}\right) & \text{II}\\
 \end{align*}
 $$
+
 The summation is over triangles that contain $v$, $e_1$ and $e_2$ are the edges of that triangle originating from $v$. The angle $\theta_1$ is opposite the edge $e_1$, similarly for angle $\theta_2$. Also in the discretisations of step II we can precompute certain quantities.
 
 As a final step we need to solve the final system of equations. 
