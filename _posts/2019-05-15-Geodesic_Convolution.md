@@ -193,8 +193,6 @@ plot_disk(th, r , kernel)
 ![png](/assets/images/geodesic_convolution/output_6_1.png)
 
 
----
-
 # Example 1: The Sphere
 
 In this example we take the isohedral sphere.
