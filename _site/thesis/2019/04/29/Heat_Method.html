@@ -110,17 +110,7 @@
 <p>The Heat Method consists of three main steps:</p>
 <ul>
   <li>I. Integrate the heat flow $\dot{u} = \Delta u$ for some fixed time $t$</li>
-  <li>
-    <table>
-      <tbody>
-        <tr>
-          <td>II. Evaluate the vector field $X = −\nabla u/</td>
-          <td>\nabla u</td>
-          <td>$.</td>
-        </tr>
-      </tbody>
-    </table>
-  </li>
+  <li>II. Evaluate the vector field $X = −\frac{\nabla u}{|\nabla u|}$.</li>
   <li>III. Solve the Poisson equation $\Delta \phi = \nabla \cdot X$.</li>
 </ul>
 
@@ -158,26 +148,32 @@ L \phi & =\nabla X & \text{III}
 
 <p>where $\alpha_{ij}$ and $\beta_{ij}$ are the angles opposite the edge $ij$.</p>
 
-<p>With this notation we can discritisize step I
-\begin{align<em>}
-\left(A-t L\right) u &amp; =u_{0}&amp; \text{I}<br />
-\end{align</em>}</p>
+<p>With this notation we can discritisize step I</p>
+
+<script type="math/tex; mode=display">% <![CDATA[
+\begin{align*}
+\left(A-t L\right) u & =u_{0}& \text{I}\\
+\end{align*} %]]></script>
 
 <p>Note that the matrix, $A-tL$, can precomputed and prefactorized since it does not depend on the source point.</p>
 
-<p>The discretisation of the gradient of a function that is defined on the vertices.
-<script type="math/tex">% <![CDATA[
+<p>The discretisation of the gradient of a function that is defined on the vertices.</p>
+
+<script type="math/tex; mode=display">% <![CDATA[
 \begin{align*}
 (\nabla u)_f & =\frac{1}{2 A_{f}} \sum_{i} u_{i}\left(N \times e_{i}\right) & \text{II}\\
 \end{align*} %]]></script>
-In this formula $\nabla u$ is computed for each triangle/face, $f$, and $A_f$ is the area of that triangle. Further $N$ denotes the normal vector of that triangle and $e_i$ the respective edges in counter clockwise order.</p>
 
-<p>The vector field $X$ is defined for each triangle, the divergence of this vector field is again a function on the vertices. The discretisation of the divergense is, 
-<script type="math/tex">% <![CDATA[
+<p>In this formula $\nabla u$ is computed for each triangle/face, $f$, and $A_f$ is the area of that triangle. Further $N$ denotes the normal vector of that triangle and $e_i$ the respective edges in counter clockwise order.</p>
+
+<p>The vector field $X$ is defined for each triangle, the divergence of this vector field is again a function on the vertices. The discretisation of the divergense is,</p>
+
+<script type="math/tex; mode=display">% <![CDATA[
 \begin{align*}
 (\nabla \cdot X)_v& =\frac{1}{2} \sum_{j} \cot \theta_{1}\left(e_{1} \cdot X_{j}\right)+\cot \theta_{2}\left(e_{2} \cdot X_{j}\right) & \text{II}\\
 \end{align*} %]]></script>
-The summation is over triangles that contain $v$, $e_1$ and $e_2$ are the edges of that triangle originating from $v$. The angle $\theta_1$ is opposite the edge $e_1$, similarly for angle $\theta_2$. Also in the discretisations of step II we can precompute certain quantities.</p>
+
+<p>The summation is over triangles that contain $v$, $e_1$ and $e_2$ are the edges of that triangle originating from $v$. The angle $\theta_1$ is opposite the edge $e_1$, similarly for angle $\theta_2$. Also in the discretisations of step II we can precompute certain quantities.</p>
 
 <p>As a final step we need to solve the final system of equations. 
 <script type="math/tex">% <![CDATA[
