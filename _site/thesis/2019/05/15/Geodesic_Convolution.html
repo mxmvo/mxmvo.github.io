@@ -75,10 +75,11 @@
   15 May 2019
 </p>
 
-<p>In this post shows an idea to generalise convolutional layers from images (functions on $\mathbb{R}^2$) to functions on triangulated manifolds. It will focus on the convolution of a kernel with a function. In a future post we will address the problem of input channels and output channels. The ideas presented here are based on <a href="https://www.cv-foundation.org/openaccess/content_iccv_2015_workshops/w22/papers/Masci_Geodesic_Convolutional_Neural_ICCV_2015_paper.pdf">this paper</a>.</p>
+<p>This post shows an idea to generalise convolutional layers from images (functions on $\mathbb{R}^2$) to functions on triangulated manifolds.</p>
+
+<p>It will focus on the convolution of a kernel with a function. In a future post we will address the problem of input channels and output channels. The ideas presented here are based on the papers <a href="https://www.cv-foundation.org/openaccess/content_iccv_2015_workshops/w22/papers/Masci_Geodesic_Convolutional_Neural_ICCV_2015_paper.pdf">Geodesic Convolutional Neural Networks on Riemannian Manifolds</a> and <a href="https://www.tau.ac.il/~roeelitm/KokBroLitBroCVPR12.pdf">Intrinsic shape context descriptors for deformable shapes</a>.</p>
 
 <hr />
-
 <p>Post Structure:</p>
 <ul>
   <li>Theory: introducing the idea and explaining the motivation</li>
@@ -89,17 +90,13 @@
 
 <hr />
 
-<h2 id="theory">Theory</h2>
-
 <p>The idea behind standard convolutional layer in a neural network is to extract local information about the function/image. Typically this is done using weights from a kernel. This local information can become more and more abstract by adding multiple convolutional layers after one another. The way of extracting information is the same on the entire image, using this type of weight sharing greatly reduces the dimension of the weight space, and should make training a model simpler.</p>
 
-<p>If the input is an image, then the network takes a local weighted average around a point. This operation is represented by the convolution operator.</p>
-
-<script type="math/tex; mode=display">\begin{align*}
+<p>If the input is an image, then the network takes a local weighted average around a point. This operation is represented by the convolution operator.
+<script type="math/tex">\begin{align*}
 f\star g (x) = \sum_{n}f(n)g(x-n)
 \end{align*}</script>
-
-<p>In the case of the image, the underlying structure is flat $2$ dimesnional euclidean space, and the pixels are spaced out evenly. In the case of a triangulated surface with a function, one cannot use this definition of the convolution, e.g. substraction is not defined on the triangulated manifold.</p>
+In the case of the image, the underlying structure is flat $2$ dimesnional euclidean space, and the pixels are spaced out evenly. In the case of a triangulated surface with a function, one cannot use this definition of the convolution, e.g. substraction is not defined on the triangulated manifold.</p>
 
 <p>Still the idea implemented here is the same, the layer should extract local information of the function around a points. Similar as in the article we explain the idea of an patch and then define the Geodesic Convolution.</p>
 
@@ -113,7 +110,7 @@ f\star g (x) = \sum_{n}f(n)g(x-n)
 
 <script type="math/tex; mode=display">% <![CDATA[
 \begin{align*}
- B_r(x):= \{ y \in M | d(x,y) < r \}
+B_r(x):\{ y \in M | d(x,y) < r \} 
 \end{align*} %]]></script>
 
 <p>the set of all point such that the geodesic distance is smaller than $r$. Additionally we can compute the actual geodesic between the points $y$ and $x$. These geodesics have a representative tangent vector in the tangent space $T_xM$. After choosing a basis of the tangent space we can calculate the angles of the vectors denote this angle as $\Theta_x(y)$. This way we can make a function</p>
@@ -124,46 +121,52 @@ f\star g (x) = \sum_{n}f(n)g(x-n)
 y & \mapsto (d(x,y), \Theta_x(y))
 \end{align*} %]]></script>
 
-<p>Note that this definition of a patch only makes sense if $r$ is small enough, such that $B_r(x)$ is actually topological equivalent to a disk. This makes sure that the cut locus is not represented in the disk, meaning the function is continuous.</p>
+<p>Note that this definition of a patch only makes sense if $r$ is small enough, such that $B_r(x)$ is actually topological equivalent to a disk. This makes sure that the cut locus is not represented in the disk, meaning the function approximates a continuous function.</p>
 
-<p>Then the geodesic convolutional operator is defined as $f\star g = \sum_{\rho, \theta} f(\phi_x^{-1}(\rho,\theta))k(\rho, \theta)$</p>
-
-<hr />
+<p>Then the geodesic convolutional operator is defined as $(f\star k) (x) = \sum_{\rho, \theta} d_xf(\rho,\theta)k(\rho, \theta)$ with $d_xf(\rho,\theta):= f(\phi_x^{-1}(\rho,\theta)$.</p>
 
 <h3 id="tangent-vectors">Tangent Vectors</h3>
 
 <p>Given a triangulated surface, how does one speak of a tangent space at a point, this point where triangles come together, will not have a natural tangent space. We overcome this issue, by mapping the neighborhood to $\mathbb{R}^2$ by keeping the ratio of triangle angles the same.</p>
 
-<hr />
+<h3 id="interpolation">Interpolation</h3>
 
-<h3 id="hardbinning">Hardbinning</h3>
+<p>The function is only defined on the vertices of the manifold, then $D_xf(\rho,\theta):= f(\phi_x^{-1}(\rho,\theta))$ might not always be well defined.</p>
 
-<p>The function is only defined on the vertices of the manifold, then $f(\phi_x^{-1}(\rho,\theta))$ might not always be well defined. Computationally we bin each point in $B_r(x)$ into an angular bin and a radial bin. Then the kernel is a matrix with weights for each bin. Then we take the local average, if the mesh does not have a representative point for a bin then we the value is assumed to be zero.</p>
+<p>Therefor we change the definition slightly to an expected value</p>
 
-<hr />
+<script type="math/tex; mode=display">% <![CDATA[
+\begin{align*}
+D_xf(\rho,\theta) = \mathbb{E}[d_xf(\rho,\theta)] & = \int_{\rho', \theta'} p_{\rho,\theta}(\rho',\theta') d_xf(\rho', \theta') d\rho' d\theta' \\
+& = \int_y p_{\rho,\theta}(y) f(y) dy \\
+& = \sum_y p_{\rho,\theta}(y) f(y) \mu(y)
+\end{align*} %]]></script>
 
-<h3 id="softbinning">Softbinning</h3>
+<p>The measure $\mu$ is the vertex area, this is defined as a third of the sum of the areas of adjacent triangles.</p>
 
-<p>As a soft binning principle, one can smooth out the mapped points on the disk, this will make them contribute to bins that potentialy didn’t have a member. This smoothing out principle will potentially reduces the importance of the triangulation. Althoug smoothing out too much might decrease the power of the convolution in later stadia of the network.</p>
+<p>As probability function we use the $\phi_x$ to obtain $\rho_y, \theta_y$, transforming this to euclidean coordinates we can calculate the distance between the point and $\rho, \theta$, denoted as $d_{\rho,\theta}(y)$, then the probability distribution is defined as</p>
 
-<hr />
+<script type="math/tex; mode=display">\begin{align*}
+p_{\rho,\theta}(x) = \frac{\exp(-\frac{d_{\rho,\theta}(x)^2}{2\sigma^2})}{\sum_y \exp(-\frac{d_{\rho,\theta}(y)^2}{2\sigma^2})}
+\end{align*}</script>
 
-<h3 id="bin-normalisation">Bin normalisation</h3>
+<p>The $\sigma$ parameter is chosen to be $0.3$, simply because is gives visually pleasing results.</p>
 
-<p>If the vertices are not spread out nice and evenly, taking an unweighted sum might heavely favor a bin if it contains a lot of vertices. Or similarly, a vertex in an area that is sparsely populated will not obtain as big a value as a point which is densely populated. Hence we use bin normalisation. Where each bin has at most weight $1$ evenly spread out among its members. simmilarly on a path we weight the num by the total number of vertices.</p>
+<p>Then final version of the geodesic convolutional operator is defined as</p>
 
-<hr />
+<script type="math/tex; mode=display">\begin{align*}
+(f\star k)(x) = \sum_{\rho, \theta} D_xf(\rho,\theta)k(\rho, \theta)
+\end{align*}</script>
 
 <h1 id="notes">Notes</h1>
 
-<p>This method has a drawback, namely we have to choose a basis. Therefor the orientation of the patch is not consistant. The reason why we have to choose a basis is because there is not a natural way of making a mapping between two points.
-This is something the image convolution did have. Furthermore, with image convolutions one can set stepsizes to reduce the height and width of an image, this does not have an equivalent in the triangulated case.</p>
+<p>This method has a drawback, namely we have to choose a basis. Therefor the orientation of the patch is not consistant. The reason why we have to choose a basis is because there is not a natural way of making a mapping between two points. This is something the image convolution did have. Furthermore, with image convolutions one can set stepsizes to reduce the height and width of an image, this does not have an equivalent in the triangulated case.</p>
 
-<p>What can also be regarded as a drawback is the creation of the patches, we assume the triangulated data is behaving. This might limit the generalisation.</p>
-
-<hr />
-
-<h3 id="code">Code</h3>
+<p>This method is dependent on a couple choices, and more research needs to be done to find the best. The choices being</p>
+<ul>
+  <li>The creation of the patches.</li>
+  <li>The interpolation of the function</li>
+</ul>
 
 <div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">sys</span>
 <span class="kn">import</span> <span class="nn">vtki</span>
@@ -217,8 +220,7 @@ This is something the image convolution did have. Furthermore, with image convol
 <hr />
 
 <div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Some small functions</span>
-<span class="n">sigma_p</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="n">p_exp</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">sigma_p</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+<span class="n">p_exp</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">y</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
 <span class="n">p_trans</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">r</span><span class="p">:</span> <span class="n">r</span><span class="o">/</span><span class="n">p_bins</span>
 <span class="n">t_trans</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="n">t</span><span class="o">/</span><span class="n">t_bins</span>
 
@@ -242,7 +244,7 @@ This is something the image convolution did have. Furthermore, with image convol
 
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">p_bins</span><span class="p">):</span>
         <span class="n">r_1</span> <span class="o">=</span> <span class="n">p_trans</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-        <span class="n">val</span> <span class="o">=</span> <span class="n">p_exp</span><span class="p">(</span><span class="n">r_1</span><span class="p">)</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="n">p_exp</span><span class="p">(</span><span class="n">r_1</span><span class="p">,</span> <span class="o">.</span><span class="mi">1</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">t_bins</span><span class="p">):</span>
             <span class="n">kernel</span><span class="p">[</span><span class="n">j</span><span class="p">,</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
     <span class="k">return</span> <span class="n">kernel</span><span class="o">/</span><span class="n">kernel</span><span class="o">.</span><span class="nb">sum</span><span class="p">()</span>
@@ -251,7 +253,76 @@ This is something the image convolution did have. Furthermore, with image convol
 <span class="n">plot_disk</span><span class="p">(</span><span class="n">th</span><span class="p">,</span> <span class="n">r</span> <span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
 </code></pre></div></div>
 
-<p><img src="/assets/images/geodesic_convolution/output_6_1.png" alt="png" /></p>
+<p><img src="/assets/images/geodesic_convolution/output_6_0.png" alt="png" /></p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># A function that returns the vertex areas</span>
+<span class="k">def</span> <span class="nf">vertex_area</span><span class="p">(</span><span class="n">mesh</span><span class="p">):</span>
+    <span class="n">tri</span> <span class="o">=</span> <span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">[</span><span class="n">mesh</span><span class="o">.</span><span class="n">triangles</span><span class="p">]</span>
+    <span class="n">tri_area</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">tri</span><span class="p">[:,</span><span class="mi">0</span><span class="p">]</span><span class="o">-</span><span class="n">tri</span><span class="p">[:,</span><span class="mi">2</span><span class="p">],</span> <span class="n">tri</span><span class="p">[:,</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">tri</span><span class="p">[:,</span><span class="mi">2</span><span class="p">]),</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span><span class="o">/</span><span class="mi">6</span>
+    <span class="n">A_mat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">vertices</span><span class="p">),</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">mesh</span><span class="o">.</span><span class="n">triangles</span><span class="p">):</span>
+        <span class="n">t1</span><span class="p">,</span> <span class="n">t2</span><span class="p">,</span> <span class="n">t3</span> <span class="o">=</span> <span class="n">t</span>
+        <span class="n">A_mat</span><span class="p">[</span><span class="n">t1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">tri_area</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">A_mat</span><span class="p">[</span><span class="n">t2</span><span class="p">]</span> <span class="o">+=</span> <span class="n">tri_area</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">A_mat</span><span class="p">[</span><span class="n">t3</span><span class="p">]</span> <span class="o">+=</span> <span class="n">tri_area</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        
+    <span class="k">return</span> <span class="n">A_mat</span>
+    
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># A matrix containing the distance probabilities</span>
+<span class="n">rho</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">p_bins</span><span class="p">))</span>
+<span class="n">theta</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">t_bins</span><span class="p">))</span>
+<span class="n">rho_o</span><span class="p">,</span> <span class="n">theta_o</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">rho</span><span class="p">,</span><span class="n">theta</span><span class="p">)</span>
+<span class="n">rho</span><span class="p">,</span> <span class="n">theta</span> <span class="o">=</span> <span class="n">p_trans</span><span class="p">(</span><span class="n">rho_o</span><span class="o">.</span><span class="n">T</span><span class="p">),</span> <span class="n">t_trans</span><span class="p">(</span><span class="n">theta_o</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+<span class="n">y1</span> <span class="o">=</span> <span class="p">(</span><span class="n">rho</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta</span><span class="p">))</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">y2</span> <span class="o">=</span> <span class="p">(</span><span class="n">rho</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="p">))</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">y1</span><span class="p">,</span><span class="n">y2</span><span class="p">])</span><span class="o">.</span><span class="n">T</span>
+<span class="n">dist</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">80</span><span class="p">,</span><span class="mi">80</span><span class="p">),</span> <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+<span class="n">p_exp</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">y</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">80</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">80</span><span class="p">):</span>
+        <span class="n">y1</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">y2</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">y1</span> <span class="o">-</span> <span class="n">y2</span><span class="p">)</span>
+        <span class="n">dist</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">p_exp</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="o">.</span><span class="mi">3</span><span class="p">)</span>
+    
+<span class="n">dist</span> <span class="o">=</span> <span class="n">dist</span><span class="o">/</span><span class="n">dist</span><span class="o">.</span><span class="nb">sum</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span> <span class="o">=</span> <span class="bp">True</span><span class="p">)</span>
+</code></pre></div></div>
+
+<hr />
+
+<p>To make use of ‘easy’ matrix multiplications. We make a matrix that contain the respective probablity and vertex area already. If $N$ is the number of vertices and $B$ the number of bins then the function below return a $N\times N \times B$ matrix.</p>
+
+<p>This matrix contain for a vertex $i$ a matrix of size $N\times B$. In each column the values $p_{\rho,\theta}(y)\mu(y)$ are stored.</p>
+
+<p>This $N\times B$ matrix should afterwards be multiplied on the left by $[f(v_1) \cdots f(v_n)]$ to get the patch function $[D_xf(b_1) \cdots D_xf(b_B)]$. For the convolution with the kernel the innerproduct with the kernel should be taken.</p>
+
+<p>The order of multiplication can be changed for efficiency, incase you want the same kernel and many different function, or one function and many different kernels</p>
+
+<p><strong>note</strong> This matrix is very sparse. Thus the code might benifit from sparse methods.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">big_prob_mat</span><span class="p">(</span><span class="n">mesh</span><span class="p">,</span> <span class="n">adj_mat</span><span class="p">,</span> <span class="n">dist</span> <span class="o">=</span> <span class="n">dist</span><span class="p">):</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="n">adj_mat</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">B</span> <span class="o">=</span> <span class="n">adj_mat</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">//</span><span class="n">N</span>
+    
+    <span class="n">A_mat</span> <span class="o">=</span> <span class="n">vertex_area</span><span class="p">(</span><span class="n">mesh</span><span class="p">)</span>
+    
+    <span class="n">p_mat</span> <span class="o">=</span> <span class="n">adj_mat</span><span class="o">.</span><span class="n">toarray</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">N</span><span class="p">,</span><span class="n">N</span><span class="p">,</span><span class="n">B</span><span class="p">))</span>
+    
+    <span class="c"># Insert the vertex areas</span>
+    <span class="c"># [N,N,B] hadamard [1,N,1]</span>
+    <span class="n">p_mat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">p_mat</span><span class="p">,</span> <span class="n">A_mat</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,:,</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">])</span>
+    
+    <span class="c"># Insert the probabilities and normalise</span>
+    <span class="c"># [N,N,B] [N,B,B] =&gt; [N,N,B]</span>
+    <span class="n">p_mat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">p_mat</span><span class="p">,</span> <span class="n">dist</span><span class="p">)</span>
+    <span class="n">p_mat</span> <span class="o">=</span> <span class="n">p_mat</span><span class="o">/</span><span class="n">p_mat</span><span class="o">.</span><span class="nb">sum</span><span class="p">(</span><span class="n">axis</span> <span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span> <span class="o">=</span> <span class="bp">True</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">p_mat</span>
+</code></pre></div></div>
 
 <hr />
 
@@ -283,92 +354,19 @@ The innerworking can be described as</p>
 <span class="n">adj_sphere</span> <span class="o">=</span> <span class="n">adjacency_matrix_fmm</span><span class="p">(</span><span class="n">sphere</span><span class="p">,</span> <span class="n">p_max</span> <span class="o">=</span> <span class="o">.</span><span class="mi">5</span><span class="p">,</span> <span class="n">p_bins</span> <span class="o">=</span> <span class="n">p_bins</span><span class="p">,</span> <span class="n">t_bins</span> <span class="o">=</span> <span class="n">t_bins</span><span class="p">)</span>
 </code></pre></div></div>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>100%|██████████| 642/642 [03:10&lt;00:00,  3.49it/s]
-</code></pre></div></div>
-
-<h2 id="sparse-matrices">Sparse Matrices</h2>
-
-<p>The creation of the adjacency matrix can be done as a preprocessing step. Now the adjacency matrix can become quite big, while a lot of entries are actually zero. Thus it makes sense to use sparse matrices, in this data structure one only remembers the rowpointers, columns and the data point. This saves significant memory if the matrix is sparse, also certain calculations can be done more efficiently.</p>
-
-<p>Thus since at a later stage the adjacency matrix is represented as a sparse matrix, we cast the matrix to a sparse matrix. A sparse matrix has to have a 2 dimensional stucture, hence the reshape.</p>
-
-<hr />
-
-<p>Below some extra fuctions that help handle the sparse matrices.</p>
-
-<hr />
-
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">bin_normalisation</span><span class="p">(</span><span class="n">sp_mat</span><span class="p">):</span>
-    <span class="s">'''
-    Normalize devide the vertex by the total number of vertices in the bin.
-    Then also devide by the total number of points in the patch.
-    '''</span>
-    <span class="n">ind</span> <span class="o">=</span> <span class="n">sp_mat</span><span class="o">.</span><span class="n">indices</span>
-    <span class="n">row</span> <span class="o">=</span> <span class="n">sp_mat</span><span class="o">.</span><span class="n">indptr</span>
-    
-    <span class="n">res1</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">res2</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">row</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
-        <span class="n">col</span> <span class="o">=</span> <span class="n">ind</span><span class="p">[</span><span class="n">row</span><span class="p">[</span><span class="n">r</span><span class="p">]:</span><span class="n">row</span><span class="p">[</span><span class="n">r</span><span class="o">+</span><span class="mi">1</span><span class="p">]]</span>
-        <span class="n">bins</span> <span class="o">=</span> <span class="n">col</span> <span class="o">%</span> <span class="p">(</span><span class="n">p_bins</span><span class="o">*</span><span class="n">t_bins</span><span class="p">)</span>
-        
-        <span class="n">num_bins</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">bins</span><span class="p">))</span>
-        <span class="n">count_bin</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">bins</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">bins</span><span class="p">:</span>
-            <span class="n">res1</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">count_bin</span><span class="p">[</span><span class="n">c</span><span class="p">])</span>
-            <span class="n">res2</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">num_bins</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">scipy</span><span class="o">.</span><span class="n">sparse</span><span class="o">.</span><span class="n">csr_matrix</span><span class="p">((</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">res1</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">res2</span><span class="p">)),</span><span class="n">ind</span><span class="p">,</span> <span class="n">row</span><span class="p">))</span> 
-
-<span class="k">def</span> <span class="nf">sparse_reshape</span><span class="p">(</span><span class="n">sp_mat</span><span class="p">):</span>
-    <span class="s">'''
-    The sparse matrix is 2 dimensional, given the number of bins
-    we can find which vertex belongs where
-    '''</span>
-    <span class="n">ind</span> <span class="o">=</span> <span class="n">sp_mat</span><span class="o">.</span><span class="n">indices</span>
-    <span class="n">row</span> <span class="o">=</span> <span class="n">sp_mat</span><span class="o">.</span><span class="n">indptr</span>
-    
-    <span class="c"># Find which bins the points belong to. </span>
-    <span class="n">sp_t</span> <span class="o">=</span> <span class="n">ind</span> <span class="o">%</span> <span class="n">t_bins</span> <span class="c"># angle</span>
-    <span class="n">sp_p</span> <span class="o">=</span> <span class="p">(</span> <span class="n">ind</span> <span class="o">%</span> <span class="p">(</span><span class="n">t_bins</span><span class="o">*</span><span class="n">p_bins</span><span class="p">))</span><span class="o">//</span><span class="n">t_bins</span> <span class="c"># radius</span>
-    <span class="n">sp_c</span> <span class="o">=</span> <span class="n">ind</span> <span class="o">//</span> <span class="p">(</span><span class="n">t_bins</span><span class="o">*</span><span class="n">p_bins</span><span class="p">)</span> <span class="c">#column</span>
-    <span class="n">diff</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">row</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> 
-    <span class="n">sp_r</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">diff</span><span class="p">))</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">diff</span><span class="p">[</span><span class="n">i</span><span class="p">])]</span> <span class="c">#row</span>
-    
-    <span class="k">return</span> <span class="n">sp_r</span><span class="p">,</span> <span class="n">sp_c</span><span class="p">,</span> <span class="n">sp_p</span><span class="p">,</span> <span class="n">sp_t</span>
-    
-<span class="k">def</span> <span class="nf">make_conv_matrix</span><span class="p">(</span><span class="n">sp_mat</span><span class="p">,</span> <span class="n">kernel</span><span class="p">):</span>
-    <span class="s">'''
-    Combine the adjacency matrix with the kernel to make the convolution matrix.
-    '''</span>
-    <span class="c"># Read lists from the sparse matrix</span>
-    <span class="n">num_vert</span> <span class="o">=</span> <span class="n">sp_mat</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-    
-    <span class="n">sp_r</span><span class="p">,</span> <span class="n">sp_c</span><span class="p">,</span> <span class="n">sp_p</span><span class="p">,</span> <span class="n">sp_t</span> <span class="o">=</span> <span class="n">sparse_reshape</span><span class="p">(</span><span class="n">sp_mat</span><span class="p">)</span>
-    <span class="n">data</span> <span class="o">=</span> <span class="n">sp_mat</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="nb">float</span><span class="p">)</span>
-    
-    <span class="c"># Find the weights of each bin and multiply by the amount a vertex should contribute. </span>
-    <span class="n">sp_d</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">indptr</span> <span class="o">=</span> <span class="n">sp_mat</span><span class="o">.</span><span class="n">indptr</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indptr</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
-        <span class="n">sl</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">indptr</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="n">indptr</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span>
-        <span class="n">rel</span> <span class="o">=</span> <span class="n">kernel</span><span class="p">[</span><span class="n">sp_t</span><span class="p">[</span><span class="n">sl</span><span class="p">],</span><span class="n">sp_p</span><span class="p">[</span><span class="n">sl</span><span class="p">]]</span><span class="o">*</span><span class="n">data</span><span class="p">[</span><span class="n">sl</span><span class="p">]</span>
-        <span class="n">sp_d</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">rel</span><span class="o">/</span><span class="n">rel</span><span class="o">.</span><span class="nb">sum</span><span class="p">())</span>
-
-
-    <span class="c"># Cast this again to a sparse matrix</span>
-    <span class="n">conv_mat</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">sparse</span><span class="o">.</span><span class="n">coo_matrix</span><span class="p">((</span><span class="n">sp_d</span><span class="p">,</span> <span class="p">(</span><span class="n">sp_r</span><span class="p">,</span><span class="n">sp_c</span><span class="p">)),</span> <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">num_vert</span><span class="p">,</span><span class="n">num_vert</span><span class="p">))</span>
-        
-    <span class="k">return</span> <span class="n">conv_mat</span>
-    
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>100%|██████████| 642/642 [05:42&lt;00:00,  1.61it/s]
 </code></pre></div></div>
 
 <div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Make a sparse matrix out of the adjacenct matrix. </span>
-<span class="c"># And normalize it.</span>
 <span class="n">sparse_sphere</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">sparse</span><span class="o">.</span><span class="n">csr_matrix</span><span class="p">(</span><span class="n">adj_sphere</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sphere</span><span class="o">.</span><span class="n">vertices</span><span class="p">),</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>
-<span class="n">sparse_sphere</span> <span class="o">=</span> <span class="n">bin_normalisation</span><span class="p">(</span><span class="n">sparse_sphere</span><span class="p">)</span>
+</code></pre></div></div>
 
-<span class="c"># Make the convolution matrix</span>
-<span class="n">conv_sphere</span> <span class="o">=</span> <span class="n">make_conv_matrix</span><span class="p">(</span><span class="n">sparse_sphere</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">%%</span><span class="n">time</span>
+<span class="n">prob_mat</span> <span class="o">=</span> <span class="n">big_prob_mat</span><span class="p">(</span><span class="n">sphere</span><span class="p">,</span> <span class="n">sparse_sphere</span><span class="p">)</span>
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>CPU times: user 576 ms, sys: 205 ms, total: 780 ms
+Wall time: 995 ms
 </code></pre></div></div>
 
 <div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Our function has value 1 on a vertex and is zero otherwise.</span>
@@ -376,7 +374,8 @@ The innerworking can be described as</p>
 <span class="n">func</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
 
 <span class="c"># The convoluted function</span>
-<span class="n">conv_func</span> <span class="o">=</span> <span class="n">conv_sphere</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+<span class="n">Df</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">prob_mat</span><span class="p">)</span>
+<span class="n">f_conv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">Df</span><span class="p">,</span> <span class="n">kernel</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
 </code></pre></div></div>
 
 <div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Plotting the original and the convoluted function. </span>
@@ -394,13 +393,13 @@ The innerworking can be described as</p>
 <span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 <span class="n">polydata</span> <span class="o">=</span> <span class="n">PolyData</span><span class="p">(</span><span class="n">sphere</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[[[</span><span class="mi">3</span><span class="p">]]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">sphere</span><span class="o">.</span><span class="n">triangles</span><span class="p">),</span><span class="n">sphere</span><span class="o">.</span><span class="n">triangles</span><span class="p">])</span>
 <span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'Convoluted function'</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
-<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">conv_func</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">f_conv</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
 <span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
                  
 <span class="n">plotter</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </code></pre></div></div>
 
-<p><img src="/assets/images/geodesic_convolution/output_16_0.png" alt="png" /></p>
+<p><img src="/assets/images/geodesic_convolution/output_18_0.png" alt="png" /></p>
 
 <h1 id="example-2-the-body">Example 2: The body</h1>
 
@@ -413,21 +412,56 @@ The innerworking can be described as</p>
   <li><code class="highlighter-rouge">p_bins = 5</code></li>
 </ul>
 
-<p>The function on which we will take the convolution is the an eigenvector of the laplace beltrami operator with added noise. The kernel will again be the gaussian kernel, ideally this kernel should be able to help with the noise that we added.</p>
-
 <div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">file_adj</span> <span class="o">=</span> <span class="s">'../test_data/tr_reg_004_raw.npz'</span>
 <span class="n">file_body</span> <span class="o">=</span> <span class="s">'../test_data/tr_reg_004.ply'</span>
 
 <span class="n">p_bins</span> <span class="o">=</span> <span class="mi">5</span>
 <span class="n">t_bins</span> <span class="o">=</span> <span class="mi">16</span>
 <span class="n">adj_mat</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">sparse</span><span class="o">.</span><span class="n">load_npz</span><span class="p">(</span><span class="n">file_adj</span><span class="p">)</span>
-<span class="n">adj_body</span> <span class="o">=</span> <span class="n">bin_normalisation</span><span class="p">(</span><span class="n">adj_mat</span><span class="p">)</span>
 <span class="n">body</span> <span class="o">=</span> <span class="n">trimesh_from_ply</span><span class="p">(</span><span class="n">file_body</span><span class="p">)</span>
 </code></pre></div></div>
 
 <hr />
 
-<p>Making a new kernel with the new parameters, we will take a more interesting function as well.</p>
+<p>We will use the same kernel. We will already precompute the matrix, so that we only need to multiply with the function in the end. The function that will be examined are a function similar to the case of the sphere and a more interesting function, namely and eigenfunction of the laplace beltrami operator.</p>
+
+<hr />
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">%%</span><span class="n">time</span>
+<span class="n">prob_mat_body</span> <span class="o">=</span> <span class="n">big_prob_mat</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">adj_mat</span><span class="p">)</span>
+<span class="n">p_kern</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">prob_mat_body</span><span class="p">,</span><span class="n">kernel</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>CPU times: user 1min 27s, sys: 1min 52s, total: 3min 19s
+Wall time: 3min 4s
+</code></pre></div></div>
+
+<hr />
+
+<p>First the function with $1$ on a vertex and zero elsewhere. In the end we see nice result, because the number of vertices here is more dense than in the case of the sphere it actually looks smoother.</p>
+
+<hr />
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">ind</span> <span class="o">=</span> <span class="mi">500</span>
+<span class="n">f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">6890</span><span class="p">)</span>
+<span class="n">f</span><span class="p">[</span><span class="n">ind</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">f_conv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">p_kern</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+</code></pre></div></div>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># The function to make the images. </span>
+<span class="c">#body.vtki_plot(ind = [ind], color = f)</span>
+</code></pre></div></div>
+
+<p><img src="/assets/images/geodesic_convolution/conv_1.png" alt="png" height="720apx" width="360px" />
+<img src="/assets/images/geodesic_convolution/conv_2.png" alt="png" height="720apx" width="360px" /></p>
+
+<hr />
+
+<h3 id="laplace-beltrami-eigenfunctions">Laplace Beltrami Eigenfunctions</h3>
+
+<p>The function on which we will take the convolution is the an eigenvector of the laplace beltrami operator with added noise. The kernel will again be the gaussian kernel, ideally this kernel should be able to help with the noise that we added.</p>
 
 <hr />
 
@@ -461,87 +495,26 @@ The innerworking can be described as</p>
 <span class="n">plotter</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </code></pre></div></div>
 
-<p><img src="/assets/images/geodesic_convolution/output_21_0.png" alt="png" /></p>
+<p><img src="/assets/images/geodesic_convolution/output_30_0.png" alt="png" /></p>
 
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">kernel</span> <span class="o">=</span> <span class="n">make_kernel</span><span class="p">(</span><span class="n">p_bins</span><span class="p">,</span> <span class="n">t_bins</span><span class="p">)</span>
-<span class="n">conv_body</span> <span class="o">=</span> <span class="n">make_conv_matrix</span><span class="p">(</span><span class="n">adj_body</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
-
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="o">%%</span><span class="n">time</span>
+<span class="c"># Apply the convolution</span>
+<span class="n">f_conv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">laplace_func</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">p_kern</span><span class="p">)</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
 </code></pre></div></div>
 
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># The convoluted function</span>
-<span class="n">conv_func</span> <span class="o">=</span> <span class="n">conv_body</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">laplace_func</span><span class="p">)</span>
-</code></pre></div></div>
-
-<h2 id="softbinning-1">Softbinning</h2>
-
-<p>For the soft binning we smooth out the projected point on the disk, so that is also contributes to other bins. This is also done using a gaussian blur.</p>
-
-<p>Because we use a gaussian blur to smooth out points, and later use a gaussian filter, we do not expect to see a huge difference. Given a different filter, one might expect to see beter results.</p>
-
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">sigma_p</span> <span class="o">=</span> <span class="mi">1</span>
-
-<span class="n">rad</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">p_bins</span><span class="p">))</span>
-<span class="n">azm</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">t_bins</span><span class="p">))</span>
-<span class="n">r_o</span><span class="p">,</span> <span class="n">th_o</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">rad</span><span class="p">,</span> <span class="n">azm</span><span class="p">)</span>
-<span class="n">r</span><span class="p">,</span> <span class="n">th</span> <span class="o">=</span> <span class="n">p_trans</span><span class="p">(</span><span class="n">r_o</span><span class="p">),</span> <span class="n">t_trans</span><span class="p">(</span><span class="n">th_o</span><span class="p">)</span>
-<span class="n">y1</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">th</span><span class="p">))</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-<span class="n">y2</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">th</span><span class="p">))</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
-<span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">y1</span><span class="p">,</span><span class="n">y2</span><span class="p">])</span>
-
-
-<span class="k">def</span> <span class="nf">radial_smoothing</span><span class="p">(</span><span class="n">r_0</span><span class="p">,</span> <span class="n">t_0</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">y</span><span class="p">):</span>
-    <span class="n">r_0</span><span class="p">,</span> <span class="n">t_0</span> <span class="o">=</span> <span class="n">p_trans</span><span class="p">(</span><span class="n">r_0</span><span class="p">),</span> <span class="n">t_trans</span><span class="p">(</span><span class="n">t_0</span><span class="p">)</span>
-    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">r_0</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">t_0</span><span class="p">)],</span> <span class="p">[</span><span class="n">r_0</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">t_0</span><span class="p">)]])</span>
-    
-    <span class="n">z</span> <span class="o">=</span> <span class="n">p_exp</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">y</span><span class="o">-</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">t_bins</span><span class="p">,</span> <span class="n">p_bins</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">z</span><span class="o">/</span><span class="n">z</span><span class="o">.</span><span class="nb">sum</span><span class="p">()</span>
-</code></pre></div></div>
-
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">def</span> <span class="nf">soft_bins</span><span class="p">(</span><span class="n">adj_body</span><span class="p">,</span> <span class="n">p_bins</span> <span class="o">=</span> <span class="n">p_bins</span><span class="p">,</span> <span class="n">t_bins</span> <span class="o">=</span> <span class="n">t_bins</span><span class="p">):</span>
-    <span class="n">sp_r</span><span class="p">,</span> <span class="n">sp_c</span><span class="p">,</span> <span class="n">sp_p</span><span class="p">,</span> <span class="n">sp_t</span> <span class="o">=</span> <span class="n">sparse_reshape</span><span class="p">(</span><span class="n">adj_body</span><span class="p">)</span>
-    
-    <span class="n">num_vert</span> <span class="o">=</span> <span class="n">adj_body</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="n">data</span> <span class="o">=</span> <span class="n">adj_body</span><span class="o">.</span><span class="n">data</span>
-    
-    <span class="n">ind_range</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">j</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">t_bins</span><span class="o">*</span><span class="n">p_bins</span><span class="p">)])</span>
-    <span class="n">new_ptr</span><span class="p">,</span> <span class="n">new_i</span><span class="p">,</span> <span class="n">new_data</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">[],</span> <span class="p">[]</span>
-    <span class="n">prev_row</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">sp_r</span><span class="p">))):</span>
-        <span class="k">if</span> <span class="n">sp_r</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="n">prev_row</span><span class="p">:</span>
-            <span class="n">prev_row</span> <span class="o">=</span> <span class="n">sp_r</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-            <span class="n">ptr</span> <span class="o">=</span> <span class="n">i</span><span class="o">*</span><span class="n">t_bins</span><span class="o">*</span><span class="n">p_bins</span>
-            <span class="n">new_ptr</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ptr</span><span class="p">)</span>
-        
-        <span class="n">new_data</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">radial_smoothing</span><span class="p">(</span><span class="n">sp_p</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="n">sp_t</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)))</span>
-        <span class="n">new_i</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">sp_c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">t_bins</span><span class="o">*</span><span class="n">p_bins</span><span class="o">+</span> <span class="n">ind_range</span><span class="p">))</span>
-    <span class="n">new_ptr</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">new_data</span><span class="p">))</span> 
-    <span class="k">return</span> <span class="n">scipy</span><span class="o">.</span><span class="n">sparse</span><span class="o">.</span><span class="n">csr_matrix</span><span class="p">((</span><span class="n">new_data</span><span class="p">,</span> <span class="n">new_i</span><span class="p">,</span> <span class="n">new_ptr</span><span class="p">))</span>
-        
-        
-        
-        
-</code></pre></div></div>
-
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">sparse_body</span> <span class="o">=</span> <span class="n">soft_bins</span><span class="p">(</span><span class="n">adj_body</span><span class="p">)</span>
-<span class="n">conv_smooth</span> <span class="o">=</span> <span class="n">make_conv_matrix</span><span class="p">(</span><span class="n">sparse_body</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
-</code></pre></div></div>
-
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>100%|██████████| 230596/230596 [00:28&lt;00:00, 8159.45it/s]
-</code></pre></div></div>
-
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># The convoluted function</span>
-<span class="n">conv_func_smooth</span> <span class="o">=</span> <span class="n">conv_smooth</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">laplace_func</span><span class="p">)</span>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>CPU times: user 69.3 ms, sys: 5.28 ms, total: 74.6 ms
+Wall time: 82.5 ms
 </code></pre></div></div>
 
 <hr />
 
-<p>If we plot the convoluted functions, there is not much difference between the hardbinned and the softbinned. This might be because the triangulation around a point is fine grained enough. But also because the kernel is a gaussian blur, this will hide the effect of the smoothing out of a point.</p>
+<p>If we plot the convoluted function, we see a nice smoothing of the noise.</p>
 
 <hr />
 
 <div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Plotting the original and the convoluted function. </span>
 
-<span class="n">plotter</span> <span class="o">=</span> <span class="n">vtki</span><span class="o">.</span><span class="n">Plotter</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+<span class="n">plotter</span> <span class="o">=</span> <span class="n">vtki</span><span class="o">.</span><span class="n">Plotter</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
 
 <span class="n">color_map</span> <span class="o">=</span> <span class="s">'jet'</span>
 
@@ -558,23 +531,34 @@ The innerworking can be described as</p>
 <span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">laplace_func</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
 <span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
                  
-<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span>
 <span class="n">polydata</span> <span class="o">=</span> <span class="n">PolyData</span><span class="p">(</span><span class="n">body</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[[[</span><span class="mi">3</span><span class="p">]]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">body</span><span class="o">.</span><span class="n">triangles</span><span class="p">),</span><span class="n">body</span><span class="o">.</span><span class="n">triangles</span><span class="p">])</span>
-<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'Hard bin'</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
-<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">conv_func</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'Convolution'</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">f_conv</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
 <span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
 
 
-<span class="n">plotter</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-<span class="n">polydata</span> <span class="o">=</span> <span class="n">PolyData</span><span class="p">(</span><span class="n">body</span><span class="o">.</span><span class="n">vertices</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">c_</span><span class="p">[[[</span><span class="mi">3</span><span class="p">]]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">body</span><span class="o">.</span><span class="n">triangles</span><span class="p">),</span><span class="n">body</span><span class="o">.</span><span class="n">triangles</span><span class="p">])</span>
-<span class="n">plotter</span><span class="o">.</span><span class="n">add_text</span><span class="p">(</span><span class="s">'Soft bin'</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">font_size</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
-<span class="n">plotter</span><span class="o">.</span><span class="n">add_mesh</span><span class="p">(</span><span class="n">polydata</span><span class="p">,</span> <span class="n">scalars</span> <span class="o">=</span> <span class="n">conv_func_smooth</span><span class="p">,</span> <span class="n">cmap</span> <span class="o">=</span> <span class="n">color_map</span><span class="p">)</span>
-<span class="n">plotter</span><span class="o">.</span><span class="n">view_vector</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="n">viewup</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
-                 
 <span class="n">plotter</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
 </code></pre></div></div>
 
-<p><img src="/assets/images/geodesic_convolution/output_30_0.png" alt="png" /></p>
+<p><img src="/assets/images/geodesic_convolution/output_33_0.png" alt="png" /></p>
+
+<hr />
+
+<p>As an extra check to see that the convolution does what we expect we plot the function values, with their index on the xaxis. Note there is no guarentee that adjacent indices are neighbors or even close together. The convolution removes the noise in the function and becomes closer to the actual function. As we would expect.</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span> <span class="o">=</span> <span class="p">(</span><span class="mi">20</span><span class="p">,</span><span class="mi">20</span><span class="p">))</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">laplace_func</span><span class="p">,</span> <span class="n">label</span> <span class="o">=</span> <span class="s">'Noisy'</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">laplace_func_orig</span><span class="p">,</span> <span class="n">label</span> <span class="o">=</span> <span class="s">'Orig'</span><span class="p">,</span> <span class="n">linewidth</span> <span class="o">=</span> <span class="o">.</span><span class="mi">5</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+<span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">f_conv</span><span class="p">,</span> <span class="n">label</span> <span class="o">=</span> <span class="s">'convolution'</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">laplace_func_orig</span><span class="p">,</span> <span class="n">label</span> <span class="o">=</span> <span class="s">'Orig'</span><span class="p">,</span> <span class="n">linewidth</span> <span class="o">=</span> <span class="o">.</span><span class="mi">5</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+
+</code></pre></div></div>
+
+<p><img src="/assets/images/geodesic_convolution/output_35_1.png" alt="png" /></p>
 
 
 
