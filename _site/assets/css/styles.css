@@ -189,10 +189,10 @@ pre > code { border: 0; padding-right: 0; padding-left: 0; }
 
 .PageNavigation .next { text-align: right; }
 
-.thumbnail { width: 100%; height: auto; display: block; }
+.thumbnail { width: 176px; height: auto; display: block; }
 
 /* resize images */
-.thumbnail img { width: 100%; height: auto; display: block; }
+.thumbnail img { width: 176px; height: auto; display: block; }
 
 .firstline table { border-collapse: separate; border-spacing: 150px; }
 
